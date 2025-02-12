@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Flappy Bird Game - Closer Pillars</title>
+  <style>
+    body {
+      margin: 0;
+      background: #70c5ce;
+      overflow: hidden;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #70c5ce;
+    }
+    /* Stylish Restart Button */
+    #restartButton {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 12px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(45deg, #ff6b6b, #ff8e72);
+      color: white;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      display: none;
+      transition: background 0.3s;
+    }
+    #restartButton:hover {
+      background: linear-gradient(45deg, #ff8e72, #ff6b6b);
+    }
+  </style>
+  <!-- Optional: Telegram Web Apps JS for Telegram integration -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.Telegram && Telegram.WebApp) {
+        const tg = Telegram.WebApp;
+        tg.ready();
+        console.log('Telegram Web App is ready!', tg.initData);
+      }
+    });
+  </script>
+</head>
+<body>
+  <!-- Increased canvas width for a wider view -->
+  <canvas id="gameCanvas" width="360" height="480"></canvas>
+  <button id="restartButton">Restart Game</button>
+  <script>
+    // Get canvas and context
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Game variables
+    let frames = 0;
+    const gravity = 0.25;
+    const jumpForce = 4.6;
+    let gameOver = false;
+    let score = 0;
+    
+    // Bird object with smaller dimensions for a zoomed-out view
+    const bird = {
+      x: 50,
+      y: 150,
+      width: 24,  // Reduced from 34
+      height: 16, // Reduced from 24
+      velocity: 0
+    };
+    
+    // Pillars (pipes) variables with smaller dimensions
+    const pillars = [];
+    const pillarWidth = 30;  // Reduced from 50
+    const pillarGap = 80;    // Reduced from 120
+    const pillarSpeed = 2;
+    // Pillars come more closely by reducing the interval between pillar creation
+    const pillarInterval = 80; // Reduced from 150 frames
+    
+    // Create a new pillar with a randomized gap position
+    function createPillar() {
+      const gapY = Math.floor(Math.random() * (canvas.height - pillarGap - 40)) + 20;
+      pillars.push({
+        x: canvas.width,
+        top: gapY,                    
+        bottom: canvas.height - (gapY + pillarGap),
+        scored: false // Used to track score for each pillar
+      });
+    }
+    
+    // Draw a more "bird-like" bird using canvas shapes
+    function drawBird() {
+      // Draw bird's body as a yellow circle
+      ctx.fillStyle = 'yellow';
+      ctx.beginPath();
+      ctx.arc(bird.x + bird.width / 2, bird.y + bird.height / 2, bird.width / 2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw the eye
+      ctx.fillStyle = 'black';
+      ctx.beginPath();
+      ctx.arc(bird.x + bird.width / 2 + 3, bird.y + bird.height / 2 - 3, 2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw a simple beak
+      ctx.fillStyle = 'orange';
+      ctx.beginPath();
+      ctx.moveTo(bird.x + bird.width, bird.y + bird.height / 2);
+      ctx.lineTo(bird.x + bird.width + 10, bird.y + bird.height / 2 - 5);
+      ctx.lineTo(bird.x + bird.width, bird.y + bird.height / 2 + 5);
+      ctx.fill();
+    }
+    
+    // Draw the pillars (pipes)
+    function drawPillars() {
+      ctx.fillStyle = 'green';
+      pillars.forEach(p => {
+        // Top pillar
+        ctx.fillRect(p.x, 0, pillarWidth, p.top);
+        // Bottom pillar
+        ctx.fillRect(p.x, canvas.height - p.bottom, pillarWidth, p.bottom);
+      });
+    }
+    
+    // Update pillar positions, create new ones, and remove off-screen pillars
+    function updatePillars() {
+      if (frames % pillarInterval === 0) {
+        createPillar();
+      }
+      for (let i = 0; i < pillars.length; i++) {
+        pillars[i].x -= pillarSpeed;
+      }
+      while (pillars.length && pillars[0].x + pillarWidth < 0) {
+        pillars.shift();
+      }
+    }
+    
+    // Check for collisions between the bird and pillars or screen boundaries
+    function checkCollision() {
+      for (let i = 0; i < pillars.length; i++) {
+        const p = pillars[i];
+        if (bird.x + bird.width > p.x && bird.x < p.x + pillarWidth) {
+          if (bird.y < p.top || bird.y + bird.height > canvas.height - p.bottom) {
+            return true;
+          }
+        }
+      }
+      if (bird.y < 0 || bird.y + bird.height > canvas.height) {
+        return true;
+      }
+      return false;
+    }
+    
+    // Reset game state to restart the game
+    function resetGame() {
+      gameOver = false;
+      score = 0;
+      frames = 0;
+      bird.x = 50;
+      bird.y = 150;
+      bird.velocity = 0;
+      pillars.length = 0; // Clear existing pillars
+      document.getElementById('restartButton').style.display = 'none';
+      update();
+    }
+    
+    // Main game loop
+    function update() {
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Arial';
+        ctx.fillText('Game Over!', canvas.width / 2 - 50, canvas.height / 2 - 20);
+        ctx.fillText('Score: ' + score, canvas.width / 2 - 35, canvas.height / 2 + 10);
+        document.getElementById('restartButton').style.display = 'block';
+        return;
+      }
+      
+      frames++;
+      bird.velocity += gravity;
+      bird.y += bird.velocity;
+      
+      updatePillars();
+      
+      // Increase score when the bird passes a pillar
+      pillars.forEach(function(p) {
+        if (!p.scored && p.x + pillarWidth < bird.x) {
+          score++;
+          p.scored = true;
+        }
+      });
+      
+      // Clear the canvas and redraw everything
+      ctx.fillStyle = '#70c5ce';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      drawPillars();
+      drawBird();
+      
+      // Display score in the top-left corner
+      ctx.fillStyle = 'white';
+      ctx.font = '20px Arial';
+      ctx.fillText('Score: ' + score, 10, 25);
+      
+      if (checkCollision()) {
+        gameOver = true;
+      }
+      
+      requestAnimationFrame(update);
+    }
+    
+    // Make the bird "jump" on canvas click
+    canvas.addEventListener('click', function() {
+      if (!gameOver) {
+        bird.velocity = -jumpForce;
+      }
+    });
+    
+    // Restart the game when the restart button is clicked
+    document.getElementById('restartButton').addEventListener('click', resetGame);
+    
+    // Start the game loop
+    update();
+  </script>
+</body>
+</html>
